@@ -5,7 +5,20 @@
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
-    "userInterfaceStyle": "light",
+    "scheme": "velour",
+    "userInterfaceStyle": "automatic",
+    "plugins": [
+      "expo-router",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Permita o acesso às fotos para adicionar imagens às memórias.",
+          "microphonePermission": false
+        }
+      ],
+      "expo-secure-store",
+      "expo-video"
+    ],
     "ios": {
       "supportsTablet": true
     },
