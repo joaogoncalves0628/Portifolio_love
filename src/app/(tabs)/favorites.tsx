@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { Alert, Modal, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Heart, LayoutGrid, List, X } from 'lucide-react-native';
+import { Heart, LayoutGrid, List, Pencil, X } from 'lucide-react-native';
+import { router } from 'expo-router';
 import { MemoryMediaView } from '../../components/MemoryMediaView';
 import { useMemories, type MemoryItem } from '../../context/MemoryContext';
 import { useTheme } from '../../context/ThemeContext';
@@ -9,7 +10,7 @@ import { fonts } from '../../theme/theme';
 
 export default function FavoritesScreen() {
   const { colors } = useTheme();
-  const { memories, toggleFavorite } = useMemories();
+  const { memories, toggleFavorite, beginEditingMemory } = useMemories();
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const [layout, setLayout] = useState<'list' | 'grid'>('list');
@@ -144,14 +145,28 @@ export default function FavoritesScreen() {
                   <Text style={[styles.detailAuthor, { color: colors.text, fontFamily: fonts.jakartaBold }]}>{selectedMemory.author}</Text>
                   <Text style={[styles.category, { color: colors.textMuted, fontFamily: fonts.jakarta }]}>{selectedMemory.date}</Text>
                 </View>
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel="Fechar detalhes"
-                  onPress={() => setSelectedMemory(null)}
-                  style={[styles.closeButton, { backgroundColor: colors.surfaceAlt }]}
-                >
-                  <X size={20} color={colors.text} />
-                </Pressable>
+                <View style={styles.detailActions}>
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel="Editar publicação"
+                    onPress={() => {
+                      beginEditingMemory(selectedMemory);
+                      setSelectedMemory(null);
+                      router.push('/add-memory');
+                    }}
+                    style={[styles.closeButton, { backgroundColor: colors.surfaceAlt }]}
+                  >
+                    <Pencil size={17} color={colors.primary} />
+                  </Pressable>
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel="Fechar detalhes"
+                    onPress={() => setSelectedMemory(null)}
+                    style={[styles.closeButton, { backgroundColor: colors.surfaceAlt }]}
+                  >
+                    <X size={20} color={colors.text} />
+                  </Pressable>
+                </View>
               </View>
               {selectedMemory.images.length > 0 ? (
                 <ScrollView
@@ -318,6 +333,10 @@ const styles = StyleSheet.create({
   detailHeading: {
     flex: 1,
     gap: 4,
+  },
+  detailActions: {
+    flexDirection: 'row',
+    gap: 8,
   },
   detailAuthor: {
     fontSize: 14,

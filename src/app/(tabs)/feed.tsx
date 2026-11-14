@@ -2,7 +2,7 @@ import { router } from 'expo-router';
 import { useTheme } from '../../context/ThemeContext';
 import { useMemories } from '../../context/MemoryContext';
 import { fonts } from '../../theme/theme';
-import { CalendarDays, Heart, Plus, MapPin } from 'lucide-react-native';
+import { CalendarDays, Heart, Plus, MapPin, Pencil } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -11,7 +11,17 @@ import { MemoryMediaView } from '../../components/MemoryMediaView';
 
 export default function FeedScreen() {
   const { colors } = useTheme();
-  const { memories, notes, settings, connectionStatus, connectionError, toggleFavorite, addLoveNote } = useMemories();
+  const {
+    memories,
+    notes,
+    settings,
+    connectionStatus,
+    connectionError,
+    toggleFavorite,
+    addLoveNote,
+    beginEditingMemory,
+    clearEditingMemory,
+  } = useMemories();
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const [noteDraft, setNoteDraft] = useState('');
@@ -65,7 +75,13 @@ export default function FeedScreen() {
         </View>
       )}
 
-      <Pressable onPress={() => router.push('/add-memory')} style={[styles.newMemoryButton, { backgroundColor: colors.surfaceAlt, borderColor: colors.border }]}>
+      <Pressable
+        onPress={() => {
+          clearEditingMemory();
+          router.push('/add-memory');
+        }}
+        style={[styles.newMemoryButton, { backgroundColor: colors.surfaceAlt, borderColor: colors.border }]}
+      >
         <Plus size={17} color={colors.primary} />
         <Text style={[styles.newMemoryText, { color: colors.text, fontFamily: fonts.jakartaBold }]}>Publicar texto, foto ou carrossel</Text>
       </Pressable>
@@ -87,9 +103,23 @@ export default function FeedScreen() {
                 <Text style={[styles.metaRow, { color: colors.textMuted, fontFamily: fonts.jakarta }]}>{memory.date}{memory.time ? ` • ${memory.time}` : ''}</Text>
               </View>
             </View>
-            <Text style={[styles.location, { color: colors.textMuted, fontFamily: fonts.jakarta }]}>
-              <MapPin size={12} color={colors.primary} /> {memory.location}
-            </Text>
+            <View style={styles.cardActions}>
+              <Text style={[styles.location, { color: colors.textMuted, fontFamily: fonts.jakarta }]}>
+                <MapPin size={12} color={colors.primary} /> {memory.location}
+              </Text>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Editar publicação"
+                onPress={() => {
+                  beginEditingMemory(memory);
+                  router.push('/add-memory');
+                }}
+                hitSlop={8}
+                style={[styles.editButton, { backgroundColor: colors.surfaceAlt, borderColor: colors.border }]}
+              >
+                <Pencil size={15} color={colors.primary} />
+              </Pressable>
+            </View>
           </View>
 
           {memory.images.length > 0 ? (
@@ -296,6 +326,20 @@ const styles = StyleSheet.create({
     fontSize: 12,
     marginRight: 8,
     flexShrink: 1,
+  },
+  cardActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    maxWidth: '50%',
+  },
+  editButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   moreButton: {
     padding: 4,

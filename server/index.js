@@ -62,6 +62,7 @@ const pool = mysql.createPool({
   user: process.env.MYSQL_USER || 'root',
   password: process.env.MYSQL_PASSWORD || '',
   database: process.env.MYSQL_DATABASE || 'portifolio_love',
+  ssl: process.env.MYSQL_SSL === 'true' ? {} : undefined,
   waitForConnections: true,
   connectionLimit: 10,
   queueLimit: 0,
@@ -218,13 +219,97 @@ function jsonArray(value) {
   return Array.isArray(parsed) ? parsed : [];
 }
 
-app.get('/health', async (_request, response, next) => {
+function normalizeMemoryInput(body, includeFavorite = false) {
+  const {
+    contentType,
+    author,
+    location,
+    date,
+    time,
+    images,
+    title,
+    description,
+    tags,
+    privatePinned,
+    isFavorite,
+  } = body ?? {};
+  const normalizedTitle = typeof title === 'string' ? title.trim() : '';
+  const normalizedDescription = typeof description === 'string' ? description.trim() : '';
+  const normalizedImages = Array.isArray(images)
+    ? images.map((media) => typeof media === 'string' ? { type: 'image', uri: media } : media)
+    : [];
+  const isValidMedia = (media) =>
+    media &&
+    typeof media === 'object' &&
+    ['image', 'video'].includes(media.type) &&
+    typeof media.uri === 'string' &&
+    /^https:\/\//i.test(media.uri);
+
+  if (
+    !['photo', 'carousel', 'text'].includes(contentType) ||
+    normalizedTitle.length > 60 ||
+    !normalizedDescription ||
+    normalizedDescription.length > 5000 ||
+    (contentType === 'text' && normalizedImages.length !== 0) ||
+    (contentType === 'photo' && (normalizedImages.length !== 1 || normalizedImages[0]?.type !== 'image')) ||
+    (contentType === 'carousel' && (normalizedImages.length < 2 || normalizedImages.length > 10)) ||
+    normalizedImages.some((media) => !isValidMedia(media))
+  ) {
+    return { error: 'Confira o tipo, o conteúdo e as imagens do post.' };
+  }
+  if (!Array.isArray(tags) || tags.length > 10 || tags.some((tag) => typeof tag !== 'string' || tag.length > 40)) {
+    return { error: 'As tags do post são inválidas.' };
+  }
+  if (typeof author === 'string' && author.trim().length > 100) {
+    return { error: 'O nome do autor deve ter até 100 caracteres.' };
+  }
+  if (typeof location === 'string' && location.trim().length > 160) {
+    return { error: 'O local deve ter até 160 caracteres.' };
+  }
+  if (typeof date === 'string' && date.trim().length > 40) {
+    return { error: 'A data deve ter até 40 caracteres.' };
+  }
+  if (time && (typeof time !== 'string' || !/^([01]\d|2[0-3]):[0-5]\d$/.test(time))) {
+    return { error: 'Informe o horário no formato HH:MM.' };
+  }
+  if (privatePinned !== undefined && typeof privatePinned !== 'boolean') {
+    return { error: 'A opção de destaque é inválida.' };
+  }
+  if (includeFavorite && typeof isFavorite !== 'boolean') {
+    return { error: 'A opção de curtida é inválida.' };
+  }
+
+  return {
+    value: {
+      contentType,
+      author: typeof author === 'string' && author.trim() ? author.trim() : 'Registrado por Você',
+      location: typeof location === 'string' && location.trim() ? location.trim() : 'Nosso cantinho',
+      date: typeof date === 'string' && date.trim() ? date.trim() : 'Hoje',
+      time: time || null,
+      images: normalizedImages,
+      title: normalizedTitle,
+      description: normalizedDescription,
+      tags,
+      isFavorite: includeFavorite ? isFavorite : false,
+      privatePinned: Boolean(privatePinned),
+    },
+  };
+}
+
+app.get('/health', async (_request, response) => {
+  let database = 'connected';
   try {
     await pool.query('SELECT 1');
-    response.json({ status: 'ok', database: 'connected', cloudinary: cloudinaryConfigured });
   } catch (error) {
-    next(error);
+    console.error('Database health check failed:', error);
+    database = 'disconnected';
   }
+  const ready = database === 'connected' && cloudinaryConfigured;
+  response.status(ready ? 200 : 503).json({
+    status: ready ? 'ok' : 'degraded',
+    database,
+    cloudinary: cloudinaryConfigured,
+  });
 });
 
 app.get('/api/memories', async (_request, response, next) => {
@@ -286,64 +371,15 @@ app.post('/api/uploads', mediaUpload.single('file'), async (request, response, n
 });
 
 app.post('/api/memories', async (request, response, next) => {
-  const {
-    contentType,
-    author,
-    location,
-    date,
-    time,
-    images,
-    title,
-    description,
-    tags,
-    privatePinned,
-  } = request.body ?? {};
-
-  const validContentType = ['photo', 'carousel', 'text'].includes(contentType);
-  const normalizedTitle = typeof title === 'string' ? title.trim() : '';
-  const normalizedDescription = typeof description === 'string' ? description.trim() : '';
-  const normalizedImages = Array.isArray(images)
-    ? images.map((media) => typeof media === 'string' ? { type: 'image', uri: media } : media)
-    : [];
-  const isValidMedia = (media) =>
-    media &&
-    typeof media === 'object' &&
-    ['image', 'video'].includes(media.type) &&
-    typeof media.uri === 'string' &&
-    /^https:\/\//i.test(media.uri);
-
-  if (
-    !validContentType ||
-    normalizedTitle.length > 60 ||
-    !normalizedDescription ||
-    normalizedDescription.length > 5000 ||
-    (contentType === 'text' && normalizedImages.length !== 0) ||
-    (contentType === 'photo' && (normalizedImages.length !== 1 || normalizedImages[0]?.type !== 'image')) ||
-    (contentType === 'carousel' && (normalizedImages.length < 2 || normalizedImages.length > 10)) ||
-    normalizedImages.some((media) => !isValidMedia(media))
-  ) {
-    response.status(400).json({ error: 'Confira o tipo, o conteúdo e as imagens do post.' });
-    return;
-  }
-
-  if (!Array.isArray(tags) || tags.length > 10 || tags.some((tag) => typeof tag !== 'string' || tag.length > 40)) {
-    response.status(400).json({ error: 'As tags do post são inválidas.' });
+  const parsed = normalizeMemoryInput(request.body);
+  if (parsed.error) {
+    response.status(400).json({ error: parsed.error });
     return;
   }
 
   const memory = {
     id: randomUUID(),
-    contentType,
-    author: typeof author === 'string' && author.trim() ? author.trim().slice(0, 100) : 'Registrado por Você',
-    location: typeof location === 'string' && location.trim() ? location.trim().slice(0, 160) : 'Nosso cantinho',
-    date: typeof date === 'string' && date.trim() ? date.trim().slice(0, 40) : 'Hoje',
-    time: typeof time === 'string' && time.trim() ? time.trim().slice(0, 20) : null,
-    images: normalizedImages,
-    title: normalizedTitle,
-    description: normalizedDescription,
-    tags,
-    isFavorite: false,
-    privatePinned: Boolean(privatePinned),
+    ...parsed.value,
     createdAt: new Date().toISOString(),
   };
 
@@ -368,6 +404,48 @@ app.post('/api/memories', async (request, response, next) => {
       ],
     );
     response.status(201).json(memory);
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.put('/api/memories/:id', async (request, response, next) => {
+  const parsed = normalizeMemoryInput(request.body, true);
+  if (parsed.error) {
+    response.status(400).json({ error: parsed.error });
+    return;
+  }
+
+  const memory = parsed.value;
+  try {
+    await pool.execute(
+      `UPDATE memories SET content_type = ?, author = ?, location = ?, memory_date = ?,
+        memory_time = ?, image_urls = ?, title = ?, description = ?, tags = ?,
+        is_favorite = ?, private_pinned = ? WHERE id = ?`,
+      [
+        memory.contentType,
+        memory.author,
+        memory.location,
+        memory.date,
+        memory.time,
+        JSON.stringify(memory.images),
+        memory.title,
+        memory.description,
+        JSON.stringify(memory.tags),
+        memory.isFavorite,
+        memory.privatePinned,
+        request.params.id,
+      ],
+    );
+    const [rows] = await pool.execute(
+      'SELECT created_at AS createdAt FROM memories WHERE id = ?',
+      [request.params.id],
+    );
+    if (rows.length === 0) {
+      response.status(404).json({ error: 'Publicação não encontrada.' });
+      return;
+    }
+    response.json({ id: request.params.id, ...memory, createdAt: rows[0].createdAt });
   } catch (error) {
     next(error);
   }

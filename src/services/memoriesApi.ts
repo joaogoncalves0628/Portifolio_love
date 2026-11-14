@@ -1,6 +1,6 @@
 import type { ImagePickerAsset } from 'expo-image-picker';
 import { Platform } from 'react-native';
-import type { CoupleEvent, CoupleSettings, LoveNote, MemoryItem, MemoryMedia } from '../context/MemoryContext';
+import type { CoupleEvent, CoupleSettings, LoveNote, MemoryEditInput, MemoryItem, MemoryMedia } from '../context/MemoryContext';
 import { notifyUnauthorized } from './authApi';
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL?.replace(/\/+$/, '');
@@ -53,6 +53,13 @@ export const fetchMemories = (token?: string) => request<MemoryItem[]>('/api/mem
 
 export const createMemory = (memory: Omit<MemoryItem, 'id' | 'createdAt' | 'isFavorite'>, token?: string) =>
   postJson<MemoryItem>('/api/memories', memory, token);
+
+export const updateMemory = (id: string, memory: MemoryEditInput, token?: string) =>
+  request<MemoryItem>(`/api/memories/${encodeURIComponent(id)}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(memory),
+  }, token);
 
 export const updateMemoryFavorite = (id: string, isFavorite: boolean, token?: string) =>
   request<{ id: string; isFavorite: boolean }>(`/api/memories/${encodeURIComponent(id)}/favorite`, {

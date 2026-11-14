@@ -3,10 +3,10 @@ import { Calendar, Clock3, Heart, Image as ImageIcon, X } from 'lucide-react-nat
 import { useState } from 'react';
 import * as ImagePicker from 'expo-image-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
-import { Alert, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
+import { Alert, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '../context/AuthContext';
-import { useMemories, type MemoryContentType } from '../context/MemoryContext';
+import { useMemories, type MemoryContentType, type MemoryItem, type MemoryMedia } from '../context/MemoryContext';
 import { MemoryMediaView } from '../components/MemoryMediaView';
 import { isMemoriesApiConfigured, uploadMemoryImage } from '../services/memoriesApi';
 import { useTheme } from '../context/ThemeContext';
@@ -25,31 +25,62 @@ const resizeOptions = [
 ] as const;
 type ResizeDimension = (typeof resizeOptions)[number]['value'];
 
+type DraftMedia = MemoryMedia & { asset?: ImagePicker.ImagePickerAsset };
+
 export default function AddMemoryScreen() {
+  const { editingMemory } = useMemories();
+  return <MemoryEditorForm key={editingMemory?.id ?? 'new'} editingMemory={editingMemory} />;
+}
+
+function MemoryEditorForm({ editingMemory }: { editingMemory: MemoryItem | null }) {
   const { colors } = useTheme();
   const { token } = useAuth();
-  const { addMemory, settings } = useMemories();
+  const {
+    addMemory,
+    updateMemory,
+    settings,
+    clearEditingMemory,
+  } = useMemories();
   const insets = useSafeAreaInsets();
-  const [privatePinned, setPrivatePinned] = useState(true);
-  const [title, setTitle] = useState('');
-  const [description, setDescription] = useState('');
-  const [date, setDate] = useState('');
-  const [time, setTime] = useState('');
-  const [location, setLocation] = useState('');
-  const [selectedTags, setSelectedTags] = useState<string[]>(['#Amor']);
-  const [contentType, setContentType] = useState<MemoryContentType>('photo');
-  const [selectedPhotos, setSelectedPhotos] = useState<ImagePicker.ImagePickerAsset[]>([]);
+  const { width } = useWindowDimensions();
+  const defaultAuthor = `Registrado por ${settings.personOne}`;
+  const [privatePinned, setPrivatePinned] = useState(editingMemory?.privatePinned ?? true);
+  const [isFavorite, setIsFavorite] = useState(editingMemory?.isFavorite ?? false);
+  const [author, setAuthor] = useState(editingMemory?.author ?? defaultAuthor);
+  const [title, setTitle] = useState(editingMemory?.title ?? '');
+  const [description, setDescription] = useState(editingMemory?.description ?? '');
+  const [date, setDate] = useState(editingMemory?.date === 'Hoje' ? '' : editingMemory?.date ?? '');
+  const [time, setTime] = useState(editingMemory?.time ?? '');
+  const [location, setLocation] = useState(editingMemory?.location ?? '');
+  const [selectedTags, setSelectedTags] = useState<string[]>(editingMemory?.tags ?? ['#Amor']);
+  const [contentType, setContentType] = useState<MemoryContentType>(editingMemory?.contentType ?? 'photo');
+  const [selectedMedia, setSelectedMedia] = useState<DraftMedia[]>(
+    editingMemory?.images.map((media) => ({ ...media })) ?? [],
+  );
   const [resizeDimension, setResizeDimension] = useState<ResizeDimension>(1920);
   const [newTag, setNewTag] = useState('');
   const [saving, setSaving] = useState(false);
 
   const toggleTag = (tag: string) => {
-    setSelectedTags((current) =>
-      current.includes(tag) ? current.filter((item) => item !== tag) : [...current, tag],
-    );
+    setSelectedTags((current) => {
+      if (current.includes(tag)) {
+        return current.filter((item) => item !== tag);
+      }
+      if (current.length >= 10) {
+        Alert.alert('Limite de tags', 'Uma publicação pode ter até 10 tags.');
+        return current;
+      }
+      return [...current, tag];
+    });
   };
 
-  const pickPhotos = async () => {
+  const pickMedia = async () => {
+    const remainingSlots = contentType === 'carousel' ? 10 - selectedMedia.length : 1;
+    if (remainingSlots <= 0) {
+      Alert.alert('Limite do carrossel', 'Um carrossel pode ter até 10 fotos ou vídeos.');
+      return;
+    }
+
     try {
       const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (!permission.granted) {
@@ -60,13 +91,24 @@ export default function AddMemoryScreen() {
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: contentType === 'carousel' ? ['images', 'videos'] : ['images'],
         allowsMultipleSelection: contentType === 'carousel',
-        selectionLimit: contentType === 'carousel' ? 10 : 1,
+        selectionLimit: remainingSlots,
         quality: 1,
         base64: !isMemoriesApiConfigured,
       });
 
       if (!result.canceled) {
-        setSelectedPhotos(result.assets);
+        const newMedia = result.assets.map((asset): DraftMedia => ({
+          type: asset.type === 'video' || asset.mimeType?.startsWith('video/') ? 'video' : 'image',
+          uri: asset.uri,
+          asset,
+        }));
+        setSelectedMedia((current) => {
+          if (contentType !== 'carousel') {
+            return newMedia.slice(0, 1);
+          }
+          const uniqueMedia = newMedia.filter((media) => !current.some((item) => item.uri === media.uri));
+          return [...current, ...uniqueMedia].slice(0, 10);
+        });
       }
     } catch (error) {
       Alert.alert('Não foi possível abrir as fotos', error instanceof Error ? error.message : 'Tente novamente.');
@@ -79,7 +121,15 @@ export default function AddMemoryScreen() {
       return;
     }
     const normalized = `#${tag}`;
+    if (normalized.length > 40) {
+      Alert.alert('Tag muito longa', 'Cada tag pode ter até 40 caracteres.');
+      return;
+    }
     if (!selectedTags.includes(normalized)) {
+      if (selectedTags.length >= 10) {
+        Alert.alert('Limite de tags', 'Uma publicação pode ter até 10 tags.');
+        return;
+      }
       setSelectedTags((current) => [...current, normalized]);
     }
     setNewTag('');
@@ -88,41 +138,51 @@ export default function AddMemoryScreen() {
   const handleSave = async () => {
     const normalizedTitle = title.trim();
     const normalizedDescription = description.trim();
+    const normalizedAuthor = author.trim();
 
     if (!normalizedDescription) {
       Alert.alert('Conteúdo obrigatório', 'Escreva a história ou o texto da memória antes de salvar.');
       return;
     }
-    if (contentType === 'photo' && (
-      selectedPhotos.length !== 1 ||
-      selectedPhotos[0].type === 'video' ||
-      selectedPhotos[0].mimeType?.startsWith('video/')
-    )) {
+    if (!normalizedAuthor || normalizedAuthor.length > 100) {
+      Alert.alert('Confira o autor', 'Informe o autor da publicação com até 100 caracteres.');
+      return;
+    }
+    if (contentType === 'photo' && (selectedMedia.length !== 1 || selectedMedia[0].type !== 'image')) {
       Alert.alert('Escolha uma foto', 'Este post precisa ter uma foto.');
       return;
     }
-    if (contentType === 'carousel' && selectedPhotos.length < 2) {
+    if (contentType === 'carousel' && (selectedMedia.length < 2 || selectedMedia.length > 10)) {
       Alert.alert('Escolha as mídias', 'Um carrossel precisa ter pelo menos duas fotos ou vídeos.');
+      return;
+    }
+    if (contentType === 'text' && selectedMedia.length > 0) {
+      Alert.alert('Remova as mídias', 'Publicações de texto não podem conter fotos ou vídeos.');
       return;
     }
 
     setSaving(true);
     try {
-      const images = await Promise.all(selectedPhotos.map(async (photo) => {
-        const isVideo = photo.type === 'video' || photo.mimeType?.startsWith('video/');
-        if (isVideo || resizeDimension === null || Math.max(photo.width, photo.height) <= resizeDimension) {
-          return uploadMemoryImage(photo, token ?? undefined);
+      const images = await Promise.all(selectedMedia.map(async (media) => {
+        const asset = media.asset;
+        if (!asset) {
+          return { type: media.type, uri: media.uri };
         }
 
-        const scale = resizeDimension / Math.max(photo.width, photo.height);
+        const isVideo = media.type === 'video';
+        if (isVideo || resizeDimension === null || Math.max(asset.width, asset.height) <= resizeDimension) {
+          return uploadMemoryImage(asset, token ?? undefined);
+        }
+
+        const scale = resizeDimension / Math.max(asset.width, asset.height);
         const resized = await ImageManipulator.ImageManipulator
-          .manipulate(photo.uri, {
+          .manipulate(asset.uri, {
             maxWidth: resizeDimension,
             maxHeight: resizeDimension,
           })
           .resize({
-            width: Math.round(photo.width * scale),
-            height: Math.round(photo.height * scale),
+            width: Math.round(asset.width * scale),
+            height: Math.round(asset.height * scale),
           })
           .renderAsync()
           .then((image) => image.saveAsync({
@@ -132,26 +192,34 @@ export default function AddMemoryScreen() {
           }));
 
         return uploadMemoryImage({
-          ...photo,
+          ...asset,
           uri: resized.uri,
           base64: resized.base64,
           mimeType: 'image/jpeg',
-          fileName: photo.fileName?.replace(/\.[^.]+$/, '.jpg') ?? `memory-${Date.now()}.jpg`,
+          fileName: asset.fileName?.replace(/\.[^.]+$/, '.jpg') ?? `memory-${Date.now()}.jpg`,
           file: undefined,
         }, token ?? undefined);
       }));
-      await addMemory({
+      const memory = {
         contentType,
-        author: `Registrado por ${settings.personOne}`,
+        author: normalizedAuthor,
         location: location.trim() || 'Nosso cantinho',
         date: date.trim() || 'Hoje',
-        time: time.trim() || '18:45',
+        time: time.trim(),
         images,
         title: normalizedTitle,
         description: normalizedDescription,
-        tags: selectedTags.length ? selectedTags : ['#NossoMomento'],
+        tags: selectedTags,
         privatePinned,
-      });
+        isFavorite,
+      };
+      if (editingMemory) {
+        await updateMemory(editingMemory.id, memory);
+      } else {
+        const { isFavorite: _isFavorite, ...newMemory } = memory;
+        await addMemory(newMemory);
+      }
+      clearEditingMemory();
       router.back();
     } catch (error) {
       Alert.alert(
@@ -163,32 +231,53 @@ export default function AddMemoryScreen() {
     }
   };
 
+  const closeEditor = () => {
+    clearEditingMemory();
+    router.back();
+  };
+
+  const visibleTags = Array.from(new Set([...tagOptions, ...selectedTags]));
+  const mediaPreviewWidth = Math.max(220, width - 36);
+
   return (
     <ScrollView
       showsVerticalScrollIndicator={false}
       contentContainerStyle={[styles.container, { paddingTop: insets.top + 18, paddingBottom: insets.bottom + 24, backgroundColor: colors.background }]}
     >
       <View style={styles.header}> 
-        <Pressable onPress={() => router.back()} style={[styles.closeButton, { backgroundColor: colors.surfaceAlt, borderColor: colors.border }]}> 
+        <Pressable onPress={closeEditor} style={[styles.closeButton, { backgroundColor: colors.surfaceAlt, borderColor: colors.border }]}> 
           <X size={18} color={colors.text} />
         </Pressable>
-        <Text style={[styles.title, { color: colors.text, fontFamily: fonts.playfair }]}>Nova Memória a Dois</Text>
+        <Text style={[styles.title, { color: colors.text, fontFamily: fonts.playfair }]}>
+          {editingMemory ? 'Editar publicação' : 'Nova Memória a Dois'}
+        </Text>
         <Pressable disabled={saving} onPress={handleSave} style={[styles.saveButton, { backgroundColor: colors.primary, opacity: saving ? 0.6 : 1 }]}> 
-          <Text style={[styles.saveText, { fontFamily: fonts.jakartaBold }]}>{saving ? 'Salvando...' : 'Salvar'}</Text>
+          <Text style={[styles.saveText, { fontFamily: fonts.jakartaBold }]}>
+            {saving ? 'Salvando...' : editingMemory ? 'Atualizar' : 'Salvar'}
+          </Text>
         </Pressable>
       </View>
 
       <View style={[styles.mediaCard, { backgroundColor: colors.surface, borderColor: colors.border }]}> 
-        {selectedPhotos.length > 0 ? (
+        {selectedMedia.length > 0 ? (
           <ScrollView horizontal pagingEnabled showsHorizontalScrollIndicator={false}>
-            {selectedPhotos.map((photo, index) => (
-              <MemoryMediaView
-                key={`${photo.uri}-${index}`}
-                media={{ type: photo.type === 'video' || photo.mimeType?.startsWith('video/') ? 'video' : 'image', uri: photo.uri }}
-                imageStyle={styles.previewImage}
-                videoStyle={styles.previewImage}
-                resizeMode="contain"
-              />
+            {selectedMedia.map((media, index) => (
+              <View key={`${media.uri}-${index}`} style={[styles.previewSlide, { width: mediaPreviewWidth }]}>
+                <MemoryMediaView
+                  media={media}
+                  imageStyle={styles.previewImage}
+                  videoStyle={styles.previewImage}
+                  resizeMode="contain"
+                />
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Remover mídia"
+                  onPress={() => setSelectedMedia((current) => current.filter((_, mediaIndex) => mediaIndex !== index))}
+                  style={[styles.removeMediaButton, { backgroundColor: colors.surface }]}
+                >
+                  <X size={18} color={colors.text} />
+                </Pressable>
+              </View>
             ))}
           </ScrollView>
         ) : (
@@ -203,25 +292,27 @@ export default function AddMemoryScreen() {
           <Text style={[styles.previewText, { color: '#fff', fontFamily: fonts.jakartaBold }]}>
             {contentType === 'text'
               ? 'TEXTO'
-              : `${selectedPhotos.length} ${selectedPhotos.length === 1 ? 'MÍDIA' : 'MÍDIAS'}`}
+              : `${selectedMedia.length} ${selectedMedia.length === 1 ? 'MÍDIA' : 'MÍDIAS'}`}
           </Text>
         </View>
         {contentType !== 'text' && (
-          <Pressable onPress={pickPhotos} style={[styles.imageButton, { backgroundColor: colors.primary }]}> 
+          <Pressable onPress={() => void pickMedia()} style={[styles.imageButton, { backgroundColor: colors.primary }]}> 
             <ImageIcon size={16} color="#fff" />
             <Text style={[styles.imageButtonText, { color: '#fff', fontFamily: fonts.jakartaBold }]}>
-              {selectedPhotos.length ? 'Escolher outras mídias' : contentType === 'carousel' ? 'Selecionar fotos e vídeos' : 'Selecionar foto'}
+              {contentType === 'photo'
+                ? selectedMedia.length ? 'Trocar foto' : 'Selecionar foto'
+                : 'Adicionar fotos e vídeos'}
             </Text>
           </Pressable>
         )}
       </View>
 
-        {contentType !== 'text' && selectedPhotos.some((photo) => photo.type !== 'video' && !photo.mimeType?.startsWith('video/')) ? (
+        {contentType !== 'text' && selectedMedia.some((media) => media.type === 'image') ? (
           <View style={[styles.resizeCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
             <View style={styles.resizeCopy}>
               <Text style={[styles.label, { color: colors.text, fontFamily: fonts.jakartaBold }]}>Tamanho das fotos</Text>
               <Text style={[styles.resizeHint, { color: colors.textMuted, fontFamily: fonts.jakarta }]}>
-                Limite do lado maior; vídeos não são redimensionados.
+                Aplicado às novas fotos; vídeos não são redimensionados.
               </Text>
             </View>
             <View style={styles.resizeOptions}>
@@ -255,10 +346,10 @@ export default function AddMemoryScreen() {
             onPress={() => {
               setContentType(option.value);
               if (option.value === 'text') {
-                setSelectedPhotos([]);
+                setSelectedMedia([]);
               } else if (option.value === 'photo') {
-                setSelectedPhotos((current) => {
-                  const firstImage = current.find((item) => item.type !== 'video' && !item.mimeType?.startsWith('video/'));
+                setSelectedMedia((current) => {
+                  const firstImage = current.find((item) => item.type === 'image');
                   return firstImage ? [firstImage] : [];
                 });
               }
@@ -268,6 +359,18 @@ export default function AddMemoryScreen() {
             <Text style={[styles.filterText, { color: contentType === option.value ? '#fff' : colors.textMuted, fontFamily: fonts.jakartaBold }]}>{option.label}</Text>
           </Pressable>
         ))}
+      </View>
+
+      <View style={[styles.field, { backgroundColor: colors.surface, borderColor: colors.border }]}> 
+        <Text style={[styles.label, { color: colors.text, fontFamily: fonts.jakartaBold }]}>Autor *</Text>
+        <TextInput
+          value={author}
+          onChangeText={setAuthor}
+          maxLength={100}
+          placeholder="Registrado por João Lucas"
+          placeholderTextColor={colors.textMuted}
+          style={[styles.input, { color: colors.text, fontFamily: fonts.jakarta }]}
+        />
       </View>
 
       <View style={[styles.field, { backgroundColor: colors.surface, borderColor: colors.border }]}> 
@@ -342,7 +445,7 @@ export default function AddMemoryScreen() {
       <View style={[styles.field, { backgroundColor: colors.surface, borderColor: colors.border }]}> 
         <Text style={[styles.label, { color: colors.text, fontFamily: fonts.jakartaBold }]}>Tags do Casal</Text>
         <View style={styles.tagWrap}> 
-          {tagOptions.map((tag) => {
+          {visibleTags.map((tag) => {
             const active = selectedTags.includes(tag);
             return (
               <Pressable
@@ -371,7 +474,7 @@ export default function AddMemoryScreen() {
       </View>
 
       <View style={[styles.field, { backgroundColor: colors.surface, borderColor: colors.border }]}> 
-        <View style={styles.switchRow}> 
+        <View style={styles.switchRow}>
           <View style={styles.switchTextWrap}> 
             <Text style={[styles.label, { color: colors.text, fontFamily: fonts.jakartaBold }]}>Destacar em Nós Dois</Text>
           </View>
@@ -382,11 +485,27 @@ export default function AddMemoryScreen() {
             thumbColor="#fff"
           />
         </View>
+        <View style={styles.switchRow}>
+          <View style={styles.switchTextWrap}>
+            <Text style={[styles.label, { color: colors.text, fontFamily: fonts.jakartaBold }]}>Curtida</Text>
+            <Text style={[styles.resizeHint, { color: colors.textMuted, fontFamily: fonts.jakarta }]}>
+              {isFavorite ? 'Esta publicação aparece em Curtidos.' : 'Esta publicação não está marcada como curtida.'}
+            </Text>
+          </View>
+          <Switch
+            value={isFavorite}
+            onValueChange={setIsFavorite}
+            trackColor={{ false: '#5b3d44', true: colors.primary }}
+            thumbColor="#fff"
+          />
+        </View>
       </View>
 
       <Pressable disabled={saving} onPress={handleSave} style={[styles.ctaButton, { backgroundColor: colors.primary, shadowColor: colors.primary, opacity: saving ? 0.6 : 1 }]}> 
         <Heart size={20} color="#fff" fill="#fff" />
-        <Text style={[styles.ctaText, { color: '#fff', fontFamily: fonts.jakartaBold }]}>{saving ? 'Salvando...' : 'Salvar no Álbum'}</Text>
+        <Text style={[styles.ctaText, { color: '#fff', fontFamily: fonts.jakartaBold }]}>
+          {saving ? 'Salvando...' : editingMemory ? 'Atualizar publicação' : 'Salvar no Álbum'}
+        </Text>
       </Pressable>
     </ScrollView>
   );
@@ -435,6 +554,19 @@ const styles = StyleSheet.create({
   previewImage: {
     width: '100%',
     height: 320,
+  },
+  previewSlide: {
+    position: 'relative',
+  },
+  removeMediaButton: {
+    position: 'absolute',
+    top: 12,
+    right: 12,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   emptyPreview: {
     height: 320,

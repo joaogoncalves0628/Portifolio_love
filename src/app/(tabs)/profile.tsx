@@ -88,18 +88,6 @@ export default function ProfileScreen() {
           </View>
         </View>
 
-        <Pressable
-          accessibilityRole="button"
-          disabled={loggingOut}
-          onPress={() => void handleSignOut()}
-          style={[styles.logoutButton, { backgroundColor: colors.surface, borderColor: colors.border, opacity: loggingOut ? 0.6 : 1 }]}
-        >
-          <LogOut size={17} color={colors.primary} />
-          <Text style={[styles.logoutText, { color: colors.primary, fontFamily: fonts.jakartaBold }]}>
-            {loggingOut ? 'Encerrando sessão...' : 'Sair da conta'}
-          </Text>
-        </Pressable>
-
         <Text style={[styles.name, { color: colors.text, fontFamily: fonts.playfair }]}>{settings.personOne} & {settings.personTwo}</Text>
         <Text style={[styles.tagline, { color: colors.textMuted, fontFamily: fonts.jakarta }]}>“Uma história construída nos dias de verdade.”</Text>
         <Text style={[styles.badge, { color: colors.primary, fontFamily: fonts.jakartaBold }]}>
@@ -111,6 +99,18 @@ export default function ProfileScreen() {
           <Text style={[styles.actionText, { color: '#fff', fontFamily: fonts.jakartaBold }]}>Editar Nós Dois</Text>
         </Pressable>
       </View>
+
+      <Pressable
+        accessibilityRole="button"
+        disabled={loggingOut}
+        onPress={() => void handleSignOut()}
+        style={[styles.logoutButton, { backgroundColor: colors.surface, borderColor: colors.border, opacity: loggingOut ? 0.6 : 1 }]}
+      >
+        <LogOut size={17} color={colors.primary} />
+        <Text style={[styles.logoutText, { color: colors.primary, fontFamily: fonts.jakartaBold }]}>
+          {loggingOut ? 'Encerrando sessão...' : 'Sair da conta'}
+        </Text>
+      </Pressable>
 
       <View style={styles.statsGrid}>
         {[

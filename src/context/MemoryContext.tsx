@@ -11,6 +11,7 @@ import {
   fetchMemories,
   isMemoriesApiConfigured,
   saveCoupleSettings,
+  updateMemory as updateMemoryRequest,
   updateMemoryFavorite,
 } from '../services/memoriesApi';
 
@@ -36,6 +37,8 @@ export type MemoryItem = {
   privatePinned?: boolean;
   createdAt?: string;
 };
+
+export type MemoryEditInput = Omit<MemoryItem, 'id' | 'createdAt'>;
 
 export type LoveNote = {
   id: string;
@@ -67,7 +70,11 @@ type PortfolioData = {
 };
 
 type MemoryContextValue = PortfolioData & {
+  editingMemory: MemoryItem | null;
+  beginEditingMemory: (memory: MemoryItem) => void;
+  clearEditingMemory: () => void;
   addMemory: (memory: Omit<MemoryItem, 'id' | 'createdAt' | 'isFavorite'>) => Promise<void>;
+  updateMemory: (id: string, memory: MemoryEditInput) => Promise<void>;
   toggleFavorite: (id: string) => Promise<void>;
   addLoveNote: (note: Omit<LoveNote, 'id' | 'createdAt'>) => Promise<void>;
   addCoupleEvent: (event: Omit<CoupleEvent, 'id' | 'createdAt'>) => Promise<void>;
@@ -181,12 +188,15 @@ function parseCachedData(serialized: string | null, legacySerialized: string | n
 export function MemoryProvider({ children }: { children: React.ReactNode }) {
   const { status: authStatus, token } = useAuth();
   const [data, setData] = useState<PortfolioData>(emptyData);
+  const [editingMemory, setEditingMemory] = useState<MemoryItem | null>(null);
   const [connectionStatus, setConnectionStatus] = useState<MemoryContextValue['connectionStatus']>('loading');
   const [connectionError, setConnectionError] = useState<string | null>(null);
 
   const persistData = useCallback(async (nextData: PortfolioData) => {
     await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(nextData));
   }, []);
+  const beginEditingMemory = useCallback((memory: MemoryItem) => setEditingMemory(memory), []);
+  const clearEditingMemory = useCallback(() => setEditingMemory(null), []);
 
   useEffect(() => {
     let active = true;
@@ -329,6 +339,26 @@ export function MemoryProvider({ children }: { children: React.ReactNode }) {
     [commitData, data, token],
   );
 
+  const updateMemory = useCallback(
+    async (id: string, memory: MemoryEditInput) => {
+      const currentMemory = data.memories.find((item) => item.id === id);
+      if (!currentMemory) {
+        throw new Error('Publicação não encontrada.');
+      }
+
+      const updatedMemory = isMemoriesApiConfigured
+        ? await updateMemoryRequest(id, memory, token ?? undefined)
+        : { ...currentMemory, ...memory };
+
+      await commitData({
+        ...data,
+        memories: data.memories.map((item) => item.id === id ? updatedMemory : item),
+      });
+      setEditingMemory(null);
+    },
+    [commitData, data, token],
+  );
+
   const toggleFavorite = useCallback(
     async (id: string) => {
       const memory = data.memories.find((item) => item.id === id);
@@ -378,7 +408,11 @@ export function MemoryProvider({ children }: { children: React.ReactNode }) {
   const value = useMemo(
     () => ({
       ...data,
+      editingMemory,
+      beginEditingMemory,
+      clearEditingMemory,
       addMemory,
+      updateMemory,
       toggleFavorite,
       addLoveNote,
       addCoupleEvent,
@@ -386,7 +420,20 @@ export function MemoryProvider({ children }: { children: React.ReactNode }) {
       connectionStatus,
       connectionError,
     }),
-    [data, addMemory, toggleFavorite, addLoveNote, addCoupleEvent, updateCoupleSettings, connectionStatus, connectionError],
+    [
+      data,
+      editingMemory,
+      beginEditingMemory,
+      clearEditingMemory,
+      addMemory,
+      updateMemory,
+      toggleFavorite,
+      addLoveNote,
+      addCoupleEvent,
+      updateCoupleSettings,
+      connectionStatus,
+      connectionError,
+    ],
   );
 
   return <MemoryContext.Provider value={value}>{children}</MemoryContext.Provider>;
