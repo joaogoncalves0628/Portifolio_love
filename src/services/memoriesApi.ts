@@ -1,4 +1,5 @@
 import type { ImagePickerAsset } from 'expo-image-picker';
+import { File } from 'expo-file-system';
 import { Platform } from 'react-native';
 import type { CoupleEvent, CoupleSettings, LoveNote, MemoryEditInput, MemoryItem, MemoryMedia } from '../context/MemoryContext';
 import { notifyUnauthorized } from './authApi';
@@ -79,8 +80,6 @@ export async function uploadMemoryImage(asset: ImagePickerAsset, token?: string)
 
   const formData = new FormData();
   const filename = asset.fileName || `memory-${Date.now()}.${type === 'video' ? 'mp4' : 'jpg'}`;
-  const mimeType = asset.mimeType || (type === 'video' ? 'video/mp4' : 'image/jpeg');
-
   if (asset.file) {
     formData.append('file', asset.file, filename);
   } else if (Platform.OS === 'web') {
@@ -90,8 +89,7 @@ export async function uploadMemoryImage(asset: ImagePickerAsset, token?: string)
     }
     formData.append('file', await response.blob(), filename);
   } else {
-    const nativeFile = { uri: asset.uri, name: filename, type: mimeType };
-    formData.append('file', nativeFile as unknown as Blob);
+    formData.append('file', new File(asset.uri), filename);
   }
 
   const result = await request<{ url: string }>('/api/uploads', {

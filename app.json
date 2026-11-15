@@ -34,6 +34,17 @@
     },
     "web": {
       "favicon": "./assets/favicon.png"
-    }
+    },
+    "extra": {
+      "router": {
+        "asyncRoutes": {
+          "web": true
+        }
+      },
+      "eas": {
+        "projectId": "64379252-a61a-4316-bfc8-8dfae1d2d84c"
+      }
+    },
+    "owner": "joaolucas_goncalves"
   }
 }
