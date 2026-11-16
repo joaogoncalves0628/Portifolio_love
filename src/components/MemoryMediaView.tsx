@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import { Image as ExpoImage } from 'expo-image';
 import { PlayCircle } from 'lucide-react-native';
@@ -12,17 +12,24 @@ type VideoMediaProps = {
   style: StyleProp<ViewStyle>;
   contentFit: ContentFit;
   deferLoading: boolean;
+  isActive: boolean;
 };
 
-function LoadedVideoMedia({ uri, style, contentFit }: Omit<VideoMediaProps, 'deferLoading'>) {
+function LoadedVideoMedia({ uri, style, contentFit, isActive }: Omit<VideoMediaProps, 'deferLoading'>) {
   const player = useVideoPlayer(uri, (videoPlayer) => {
     videoPlayer.muted = false;
   });
 
+  useEffect(() => {
+    if (!isActive) {
+      player.pause();
+    }
+  }, [isActive, player]);
+
   return <VideoView player={player} style={style} contentFit={contentFit} nativeControls />;
 }
 
-function VideoMedia({ uri, style, contentFit, deferLoading }: VideoMediaProps) {
+function VideoMedia({ uri, style, contentFit, deferLoading, isActive }: VideoMediaProps) {
   const [isLoaded, setIsLoaded] = useState(!deferLoading);
 
   if (!isLoaded) {
@@ -41,7 +48,7 @@ function VideoMedia({ uri, style, contentFit, deferLoading }: VideoMediaProps) {
     );
   }
 
-  return <LoadedVideoMedia uri={uri} style={style} contentFit={contentFit} />;
+  return <LoadedVideoMedia uri={uri} style={style} contentFit={contentFit} isActive={isActive} />;
 }
 
 type MemoryMediaViewProps = {
@@ -50,6 +57,7 @@ type MemoryMediaViewProps = {
   videoStyle: StyleProp<ViewStyle>;
   resizeMode?: ContentFit;
   deferVideoLoading?: boolean;
+  isVisible?: boolean;
 };
 
 export function MemoryMediaView({
@@ -58,6 +66,7 @@ export function MemoryMediaView({
   videoStyle,
   resizeMode = 'cover',
   deferVideoLoading = false,
+  isVisible = true,
 }: MemoryMediaViewProps) {
   if (media.type === 'video') {
     return (
@@ -66,8 +75,13 @@ export function MemoryMediaView({
         style={videoStyle}
         contentFit={resizeMode}
         deferLoading={deferVideoLoading}
+        isActive={isVisible}
       />
     );
+  }
+
+  if (!isVisible) {
+    return <View style={[imageStyle, styles.imagePlaceholder]} />;
   }
 
   return (
@@ -94,6 +108,9 @@ function optimizeCloudinaryImage(uri: string) {
 }
 
 const styles = StyleSheet.create({
+  imagePlaceholder: {
+    backgroundColor: '#1f1114',
+  },
   videoPlaceholder: {
     backgroundColor: '#1f1114',
     alignItems: 'center',

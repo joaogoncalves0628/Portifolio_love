@@ -6,8 +6,10 @@ import { CalendarDays, Heart, Plus, MapPin, Pencil, Trash2 } from 'lucide-react-
 import { LinearGradient } from 'expo-linear-gradient';
 import { Alert, FlatList, Platform, Pressable, StyleSheet, Text, TextInput, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
 import { MemoryMediaView } from '../../components/MemoryMediaView';
+
+const feedViewabilityConfig = { itemVisiblePercentThreshold: 15 };
 
 export default function FeedScreen() {
   const { colors } = useTheme();
@@ -27,7 +29,14 @@ export default function FeedScreen() {
   const { width } = useWindowDimensions();
   const [noteDraft, setNoteDraft] = useState('');
   const [sendingNote, setSendingNote] = useState(false);
+  const [visibleMemoryIds, setVisibleMemoryIds] = useState<Set<string>>(() => new Set());
   const imageWidth = Math.max(220, width - 64);
+  const onViewableItemsChanged = useCallback(
+    ({ viewableItems }: { viewableItems: { item: { id: string } }[] }) => {
+      setVisibleMemoryIds(new Set(viewableItems.map(({ item }) => item.id)));
+    },
+    [],
+  );
 
   const handleSendNote = async () => {
     const content = noteDraft.trim();
@@ -79,9 +88,12 @@ export default function FeedScreen() {
         styles.container,
         { paddingTop: insets.top + 16, paddingBottom: 110, backgroundColor: colors.background },
       ]}
-      initialNumToRender={2}
-      maxToRenderPerBatch={2}
-      windowSize={5}
+      initialNumToRender={1}
+      maxToRenderPerBatch={1}
+      updateCellsBatchingPeriod={75}
+      windowSize={3}
+      viewabilityConfig={feedViewabilityConfig}
+      onViewableItemsChanged={onViewableItemsChanged}
       removeClippedSubviews={Platform.OS === 'android'}
       ListHeaderComponent={
         <View>
@@ -213,6 +225,7 @@ export default function FeedScreen() {
                       imageStyle={[styles.memoryImage, { width: imageWidth }]}
                       videoStyle={[styles.memoryImage, { width: imageWidth }]}
                       deferVideoLoading
+                      isVisible={visibleMemoryIds.has(memory.id)}
                     />
                     {memory.images.length > 1 ? (
                       <Text style={[styles.imageCounter, { color: '#fff', fontFamily: fonts.jakartaBold }]}>
