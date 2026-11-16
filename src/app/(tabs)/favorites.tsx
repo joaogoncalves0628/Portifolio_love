@@ -4,6 +4,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Heart, LayoutGrid, List, Pencil, Trash2, X } from 'lucide-react-native';
 import { router } from 'expo-router';
 import { MemoryMediaView } from '../../components/MemoryMediaView';
+import { TabBarBlurTarget } from '../../components/TabBarBlurTarget';
 import { useMemories, type MemoryItem } from '../../context/MemoryContext';
 import { useTheme } from '../../context/ThemeContext';
 import { fonts } from '../../theme/theme';
@@ -48,6 +49,7 @@ export default function FavoritesScreen() {
   };
 
   return (
+    <TabBarBlurTarget routeName="favorites">
     <>
       <ScrollView
         showsVerticalScrollIndicator={false}
@@ -235,6 +237,7 @@ export default function FavoritesScreen() {
         </View>
       </Modal>
     </>
+    </TabBarBlurTarget>
   );
 }
 

@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { Alert, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ChevronLeft, ChevronRight, Clock3, Heart, Plus, Sparkles, X } from 'lucide-react-native';
+import { TabBarBlurTarget } from '../../components/TabBarBlurTarget';
 import { useMemories } from '../../context/MemoryContext';
 import { useTheme } from '../../context/ThemeContext';
 import { fonts } from '../../theme/theme';
@@ -110,10 +111,11 @@ export default function CalendarScreen() {
   };
 
   return (
-    <ScrollView
-      showsVerticalScrollIndicator={false}
-      contentContainerStyle={[styles.container, { paddingTop: insets.top + 18, paddingBottom: 120, backgroundColor: colors.background }]}
-    >
+    <TabBarBlurTarget routeName="calendar">
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={[styles.container, { paddingTop: insets.top + 18, paddingBottom: 120, backgroundColor: colors.background }]}
+      >
       <View style={styles.headerRow}>
         <Text style={[styles.title, { color: colors.text, fontFamily: fonts.playfair }]}>Datas a Dois</Text>
         <Pressable onPress={goToToday} style={[styles.todayButton, { backgroundColor: colors.surfaceAlt, borderColor: colors.border }]}>
@@ -266,7 +268,8 @@ export default function CalendarScreen() {
           </View>
         </View>
       </Modal>
-    </ScrollView>
+      </ScrollView>
+    </TabBarBlurTarget>
   );
 }
 

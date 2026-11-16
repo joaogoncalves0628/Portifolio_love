@@ -6,6 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { CalendarDays, Heart, LogOut, Pencil, Plus, Sparkles, UsersRound, X } from 'lucide-react-native';
 import { useAuth } from '../../context/AuthContext';
 import { useMemories } from '../../context/MemoryContext';
+import { TabBarBlurTarget } from '../../components/TabBarBlurTarget';
 import { uploadMemoryImage } from '../../services/memoriesApi';
 import { useTheme } from '../../context/ThemeContext';
 import { fonts } from '../../theme/theme';
@@ -107,10 +108,11 @@ export default function ProfileScreen() {
   };
 
   return (
-    <ScrollView
-      showsVerticalScrollIndicator={false}
-      contentContainerStyle={[styles.container, { paddingTop: insets.top + 18, paddingBottom: 120, backgroundColor: colors.background }]}
-    >
+    <TabBarBlurTarget routeName="profile">
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={[styles.container, { paddingTop: insets.top + 18, paddingBottom: 120, backgroundColor: colors.background }]}
+      >
       <View style={[styles.profileCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
         <View style={styles.avatarRow}>
           <Pressable
@@ -252,7 +254,8 @@ export default function ProfileScreen() {
           </View>
         </View>
       </Modal>
-    </ScrollView>
+      </ScrollView>
+    </TabBarBlurTarget>
   );
 }
 

@@ -8,6 +8,7 @@ import { Alert, FlatList, Platform, Pressable, StyleSheet, Text, TextInput, View
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useCallback, useState } from 'react';
 import { MemoryMediaView } from '../../components/MemoryMediaView';
+import { TabBarBlurTarget } from '../../components/TabBarBlurTarget';
 
 const feedViewabilityConfig = { itemVisiblePercentThreshold: 15 };
 
@@ -79,8 +80,9 @@ export default function FeedScreen() {
   };
 
   return (
-    <FlatList
-      data={memories}
+    <TabBarBlurTarget routeName="feed">
+      <FlatList
+        data={memories}
       keyExtractor={(memory) => memory.id}
       showsVerticalScrollIndicator={false}
       style={{ backgroundColor: colors.background }}
@@ -262,8 +264,9 @@ export default function FeedScreen() {
             ))}
           </View>
         </View>
-      )}
-    />
+        )}
+      />
+    </TabBarBlurTarget>
   );
 }
 

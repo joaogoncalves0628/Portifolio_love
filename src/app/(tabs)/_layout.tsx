@@ -1,10 +1,11 @@
-import { Fragment, useEffect } from 'react';
+import { Fragment, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { Tabs, router } from 'expo-router';
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
 import { BookOpenText, CalendarDays, Heart, Plus, Sparkles, UsersRound } from 'lucide-react-native';
 import { Platform, Pressable, StyleSheet, View } from 'react-native';
+import type { ComponentRef, RefObject } from 'react';
 import Animated, {
   interpolateColor,
   useAnimatedStyle,
@@ -13,8 +14,10 @@ import Animated, {
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../../context/ThemeContext';
+import { TabBarBlurContext } from '../../components/TabBarBlurTarget';
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
+type NativeView = ComponentRef<typeof View>;
 
 // Componente individual para cada aba animada
 function AnimatedTabItem({ route, isFocused, label, colors, onPress }: any) {
@@ -131,6 +134,8 @@ function CenterAddButton({ colors }: any) {
 function CustomTabBar({ state, descriptors, navigation }: any) {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
+  const blurContext = useContext(TabBarBlurContext);
+  const activeBlurTarget = blurContext?.targets[state.routes[state.index]?.name];
 
   const routeMap: Record<string, string> = {
     feed: '/(tabs)/feed',
@@ -143,13 +148,16 @@ function CustomTabBar({ state, descriptors, navigation }: any) {
     <View style={[styles.tabWrap, { paddingBottom: Math.max(insets.bottom, 12) }]}>
       <View style={styles.barContainer}>
         <BlurView
-          intensity={55}
+          blurTarget={activeBlurTarget}
+          blurMethod={Platform.OS === 'android' ? 'dimezisBlurViewSdk31Plus' : undefined}
+          blurReductionFactor={2}
+          intensity={75}
           tint="dark"
           style={[
             styles.blurBackground,
             {
-              backgroundColor: colors.surfaceAlt,
-              borderColor: colors.border,
+              backgroundColor: 'rgba(20, 8, 12, 0.68)',
+              borderColor: 'rgba(255, 255, 255, 0.14)',
             },
           ]}
         />
@@ -188,16 +196,38 @@ function CustomTabBar({ state, descriptors, navigation }: any) {
 }
 
 export default function TabsLayout() {
+  const [targets, setTargets] = useState<Record<string, RefObject<NativeView | null>>>({});
+  const registerTarget = useCallback(
+    (routeName: string, target: RefObject<NativeView | null> | null) => {
+      setTargets((current) => {
+        if (target) {
+          return current[routeName] === target ? current : { ...current, [routeName]: target };
+        }
+
+        if (!current[routeName]) {
+          return current;
+        }
+        const next = { ...current };
+        delete next[routeName];
+        return next;
+      });
+    },
+    [],
+  );
+  const blurContext = useMemo(() => ({ targets, registerTarget }), [registerTarget, targets]);
+
   return (
-    <Tabs
-      screenOptions={{ headerShown: false }}
-      tabBar={(props) => <CustomTabBar {...props} />}
-    >
-      <Tabs.Screen name="feed" options={{ title: 'Álbum' }} />
-      <Tabs.Screen name="calendar" options={{ title: 'Datas' }} />
-      <Tabs.Screen name="favorites" options={{ title: 'Curtidos' }} />
-      <Tabs.Screen name="profile" options={{ title: 'Nós Dois' }} />
-    </Tabs>
+    <TabBarBlurContext.Provider value={blurContext}>
+      <Tabs
+        screenOptions={{ headerShown: false }}
+        tabBar={(props) => <CustomTabBar {...props} />}
+      >
+        <Tabs.Screen name="feed" options={{ title: 'Álbum' }} />
+        <Tabs.Screen name="calendar" options={{ title: 'Datas' }} />
+        <Tabs.Screen name="favorites" options={{ title: 'Curtidos' }} />
+        <Tabs.Screen name="profile" options={{ title: 'Nós Dois' }} />
+      </Tabs>
+    </TabBarBlurContext.Provider>
   );
 }
 
@@ -216,6 +246,11 @@ const styles = StyleSheet.create({
     width: '100%',
     maxWidth: 480,
     justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.32,
+    shadowRadius: 16,
+    elevation: 14,
   },
   blurBackground: {
     ...StyleSheet.absoluteFill,
