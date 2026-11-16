@@ -4,7 +4,7 @@ import { useMemories } from '../../context/MemoryContext';
 import { fonts } from '../../theme/theme';
 import { CalendarDays, Heart, Plus, MapPin, Pencil, Trash2 } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View, useWindowDimensions } from 'react-native';
+import { Alert, FlatList, Platform, Pressable, StyleSheet, Text, TextInput, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useState } from 'react';
 import { MemoryMediaView } from '../../components/MemoryMediaView';
@@ -70,46 +70,91 @@ export default function FeedScreen() {
   };
 
   return (
-    <ScrollView
+    <FlatList
+      data={memories}
+      keyExtractor={(memory) => memory.id}
       showsVerticalScrollIndicator={false}
-      contentContainerStyle={[styles.container, { paddingTop: insets.top + 16, paddingBottom: 110, backgroundColor: colors.background }]}
-    >
-      <View style={styles.header}>
-        <Text style={[styles.eyebrow, { color: colors.textMuted, fontFamily: fonts.jakarta }]}>Nossos capítulos</Text>
-        <Text style={[styles.title, { color: colors.text, fontFamily: fonts.playfair }]}>Portifolio Love</Text>
-      </View>
+      style={{ backgroundColor: colors.background }}
+      contentContainerStyle={[
+        styles.container,
+        { paddingTop: insets.top + 16, paddingBottom: 110, backgroundColor: colors.background },
+      ]}
+      initialNumToRender={2}
+      maxToRenderPerBatch={2}
+      windowSize={5}
+      removeClippedSubviews={Platform.OS === 'android'}
+      ListHeaderComponent={
+        <View>
+          <View style={styles.header}>
+            <Text style={[styles.eyebrow, { color: colors.textMuted, fontFamily: fonts.jakarta }]}>Nossos capítulos</Text>
+            <Text style={[styles.title, { color: colors.text, fontFamily: fonts.playfair }]}>Portifolio Love</Text>
+          </View>
 
-      {connectionStatus !== 'connected' && (
-        <View style={[styles.connectionNotice, { backgroundColor: colors.surfaceAlt, borderColor: colors.border }]}>
-          <Text style={[styles.connectionNoticeText, { color: colors.textMuted, fontFamily: fonts.jakarta }]}>
-            {connectionStatus === 'loading'
-              ? 'Conectando ao banco...'
-              : connectionStatus === 'local'
-                ? 'Modo local: configure EXPO_PUBLIC_API_URL para conectar ao MySQL.'
-                : `API/MySQL indisponível: ${connectionError ?? 'verifique a configuração do servidor.'}`}
-          </Text>
+          {connectionStatus !== 'connected' && (
+            <View style={[styles.connectionNotice, { backgroundColor: colors.surfaceAlt, borderColor: colors.border }]}>
+              <Text style={[styles.connectionNoticeText, { color: colors.textMuted, fontFamily: fonts.jakarta }]}>
+                {connectionStatus === 'loading'
+                  ? 'Conectando ao banco...'
+                  : connectionStatus === 'local'
+                    ? 'Modo local: configure EXPO_PUBLIC_API_URL para conectar ao MySQL.'
+                    : `API/MySQL indisponível: ${connectionError ?? 'verifique a configuração do servidor.'}`}
+              </Text>
+            </View>
+          )}
+
+          <Pressable
+            onPress={() => {
+              clearEditingMemory();
+              router.push('/add-memory');
+            }}
+            style={[styles.newMemoryButton, { backgroundColor: colors.surfaceAlt, borderColor: colors.border }]}
+          >
+            <Plus size={17} color={colors.primary} />
+            <Text style={[styles.newMemoryText, { color: colors.text, fontFamily: fonts.jakartaBold }]}>Publicar texto, foto ou carrossel</Text>
+          </Pressable>
         </View>
-      )}
-
-      <Pressable
-        onPress={() => {
-          clearEditingMemory();
-          router.push('/add-memory');
-        }}
-        style={[styles.newMemoryButton, { backgroundColor: colors.surfaceAlt, borderColor: colors.border }]}
-      >
-        <Plus size={17} color={colors.primary} />
-        <Text style={[styles.newMemoryText, { color: colors.text, fontFamily: fonts.jakartaBold }]}>Publicar texto, foto ou carrossel</Text>
-      </Pressable>
-
-      {memories.length === 0 && connectionStatus !== 'loading' ? (
+      }
+      ListEmptyComponent={connectionStatus !== 'loading' ? (
         <View style={[styles.emptyState, { backgroundColor: colors.surface, borderColor: colors.border }]}>
           <Text style={[styles.emptyTitle, { color: colors.text, fontFamily: fonts.playfair }]}>O álbum começa com vocês</Text>
           <Text style={[styles.emptyDescription, { color: colors.textMuted, fontFamily: fonts.jakarta }]}>Publique uma memória, uma foto ou um texto para preencher esta página.</Text>
         </View>
-      ) : null}
+      ) : undefined}
+      ListFooterComponent={
+        <View>
+          <View style={[styles.noteCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+            <Text style={[styles.noteTitle, { color: colors.text, fontFamily: fonts.playfair }]}>Notas & Bilhetes de Amor</Text>
+            {notes.map((note) => (
+              <View key={note.id} style={[styles.noteQuote, { backgroundColor: colors.panel, borderColor: colors.border }]}>
+                <Text style={[styles.noteText, { color: colors.textMuted, fontFamily: fonts.jakarta }]}>
+                  {note.author}: “{note.content}”
+                </Text>
+              </View>
+            ))}
+            <View style={[styles.quickNoteInput, { backgroundColor: colors.surfaceAlt, borderColor: colors.border }]}>
+              <TextInput
+                value={noteDraft}
+                onChangeText={setNoteDraft}
+                placeholder="Escreva um bilhete de amor..."
+                placeholderTextColor={colors.textMuted}
+                maxLength={1000}
+                style={[styles.quickNoteText, { color: colors.text, fontFamily: fonts.jakarta }]}
+              />
+              <Pressable disabled={sendingNote || !noteDraft.trim()} onPress={() => void handleSendNote()} style={[styles.sendButton, { backgroundColor: colors.primary, opacity: sendingNote || !noteDraft.trim() ? 0.5 : 1 }]}>
+                <Text style={[styles.sendText, { fontFamily: fonts.jakartaBold }]}>{sendingNote ? 'Enviando...' : 'Enviar'}</Text>
+              </Pressable>
+            </View>
+          </View>
 
-      {memories.map((memory) => (
+          {memories.length > 0 ? (
+            <View style={[styles.endCard, { backgroundColor: colors.surfaceAlt, borderColor: colors.border }]}>
+              <CalendarDays color={colors.champagne} size={22} />
+              <Text style={[styles.endText, { color: colors.text, fontFamily: fonts.jakarta }]}>Cada lembrança publicada agora faz parte do álbum de vocês.</Text>
+            </View>
+          ) : null}
+        </View>
+      }
+      renderItem={({ item: memory }) => (
         <View key={memory.id} style={[styles.memoryCard, { backgroundColor: colors.surface, borderColor: colors.border }]}> 
           <View style={styles.cardHeader}> 
             <View style={styles.authorWrap}> 
@@ -149,19 +194,25 @@ export default function FeedScreen() {
 
           {memory.images.length > 0 ? (
             <View style={styles.imageWrap}>
-              <ScrollView
+              <FlatList
+                data={memory.images}
+                keyExtractor={(_image, index) => `${memory.id}-${index}`}
                 horizontal
                 pagingEnabled
                 showsHorizontalScrollIndicator={false}
                 nestedScrollEnabled
                 style={{ width: imageWidth }}
-              >
-                {memory.images.map((image, index) => (
+                initialNumToRender={1}
+                maxToRenderPerBatch={2}
+                windowSize={3}
+                removeClippedSubviews={Platform.OS === 'android'}
+                renderItem={({ item: image, index }) => (
                   <View key={`${memory.id}-${index}`} style={{ width: imageWidth }}>
                     <MemoryMediaView
                       media={image}
                       imageStyle={[styles.memoryImage, { width: imageWidth }]}
                       videoStyle={[styles.memoryImage, { width: imageWidth }]}
+                      deferVideoLoading
                     />
                     {memory.images.length > 1 ? (
                       <Text style={[styles.imageCounter, { color: '#fff', fontFamily: fonts.jakartaBold }]}>
@@ -169,8 +220,8 @@ export default function FeedScreen() {
                       </Text>
                     ) : null}
                   </View>
-                ))}
-              </ScrollView>
+                )}
+              />
               <LinearGradient
                 colors={['rgba(15,5,7,0.02)', 'rgba(15,5,7,0.25)']}
                 style={StyleSheet.absoluteFill}
@@ -198,39 +249,8 @@ export default function FeedScreen() {
             ))}
           </View>
         </View>
-      ))}
-
-      <View style={[styles.noteCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-        <Text style={[styles.noteTitle, { color: colors.text, fontFamily: fonts.playfair }]}>Notas & Bilhetes de Amor</Text>
-        {notes.map((note) => (
-          <View key={note.id} style={[styles.noteQuote, { backgroundColor: colors.panel, borderColor: colors.border }]}>
-            <Text style={[styles.noteText, { color: colors.textMuted, fontFamily: fonts.jakarta }]}>
-              {note.author}: “{note.content}”
-            </Text>
-          </View>
-        ))}
-        <View style={[styles.quickNoteInput, { backgroundColor: colors.surfaceAlt, borderColor: colors.border }]}> 
-          <TextInput
-            value={noteDraft}
-            onChangeText={setNoteDraft}
-            placeholder="Escreva um bilhete de amor..."
-            placeholderTextColor={colors.textMuted}
-            maxLength={1000}
-            style={[styles.quickNoteText, { color: colors.text, fontFamily: fonts.jakarta }]}
-          />
-          <Pressable disabled={sendingNote || !noteDraft.trim()} onPress={() => void handleSendNote()} style={[styles.sendButton, { backgroundColor: colors.primary, opacity: sendingNote || !noteDraft.trim() ? 0.5 : 1 }]}>
-            <Text style={[styles.sendText, { fontFamily: fonts.jakartaBold }]}>{sendingNote ? 'Enviando...' : 'Enviar'}</Text>
-          </Pressable>
-        </View>
-      </View>
-
-      {memories.length > 0 ? (
-        <View style={[styles.endCard, { backgroundColor: colors.surfaceAlt, borderColor: colors.border }]}>
-          <CalendarDays color={colors.champagne} size={22} />
-          <Text style={[styles.endText, { color: colors.text, fontFamily: fonts.jakarta }]}>Cada lembrança publicada agora faz parte do álbum de vocês.</Text>
-        </View>
-      ) : null}
-    </ScrollView>
+      )}
+    />
   );
 }
 
