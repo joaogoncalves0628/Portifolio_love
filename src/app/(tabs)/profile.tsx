@@ -1,17 +1,19 @@
 import { router } from 'expo-router';
 import { useMemo, useState } from 'react';
-import { Alert, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import * as ImagePicker from 'expo-image-picker';
+import { Alert, Image, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { CalendarDays, Heart, LogOut, Pencil, Plus, Sparkles, UsersRound, X } from 'lucide-react-native';
 import { useAuth } from '../../context/AuthContext';
 import { useMemories } from '../../context/MemoryContext';
+import { uploadMemoryImage } from '../../services/memoriesApi';
 import { useTheme } from '../../context/ThemeContext';
 import { fonts } from '../../theme/theme';
 import { differenceInDays, formatDateForInput, formatPortugueseDate, nextAnniversary, parsePortugueseDate } from '../../utils/dates';
 
 export default function ProfileScreen() {
   const { colors } = useTheme();
-  const { signOut } = useAuth();
+  const { signOut, token, user } = useAuth();
   const { memories, events, settings, updateCoupleSettings } = useMemories();
   const insets = useSafeAreaInsets();
   const [showEditor, setShowEditor] = useState(false);
@@ -20,7 +22,10 @@ export default function ProfileScreen() {
   const [startDate, setStartDate] = useState(formatDateForInput(settings.relationshipStartDate));
   const [saving, setSaving] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
+  const [uploadingAvatar, setUploadingAvatar] = useState<'joao' | 'caio' | null>(null);
 
+  const isJoao = user?.username === 'joaolucas';
+  const coupleTitle = isJoao ? 'Você e Caio Forini' : 'Você e João Lucas';
   const daysTogether = Math.max(0, differenceInDays(settings.relationshipStartDate));
   const anniversary = useMemo(() => nextAnniversary(settings.relationshipStartDate), [settings.relationshipStartDate]);
   const uniquePlaces = new Set(memories.map((memory) => memory.location.trim()).filter((place) => place && place !== 'Nosso cantinho')).size;
@@ -48,12 +53,43 @@ export default function ProfileScreen() {
         personOne: personOne.trim(),
         personTwo: personTwo.trim(),
         relationshipStartDate: isoDate,
+        joaoAvatarUrl: settings.joaoAvatarUrl,
+        caioAvatarUrl: settings.caioAvatarUrl,
       });
       setShowEditor(false);
     } catch (error) {
       Alert.alert('Não foi possível salvar', error instanceof Error ? error.message : 'Tente novamente.');
     } finally {
       setSaving(false);
+    }
+  };
+
+  const changeAvatar = async (person: 'joao' | 'caio') => {
+    try {
+      const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!permission.granted) {
+        Alert.alert('Permissão necessária', 'Permita o acesso às fotos para escolher uma foto de perfil.');
+        return;
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images'],
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.85,
+      });
+      if (result.canceled) return;
+
+      setUploadingAvatar(person);
+      const uploaded = await uploadMemoryImage(result.assets[0], token ?? undefined);
+      await updateCoupleSettings({
+        ...settings,
+        [person === 'joao' ? 'joaoAvatarUrl' : 'caioAvatarUrl']: uploaded.uri,
+      });
+    } catch (error) {
+      Alert.alert('Não foi possível atualizar a foto', error instanceof Error ? error.message : 'Tente novamente.');
+    } finally {
+      setUploadingAvatar(null);
     }
   };
 
@@ -77,18 +113,37 @@ export default function ProfileScreen() {
     >
       <View style={[styles.profileCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
         <View style={styles.avatarRow}>
-          <View style={[styles.avatar, { backgroundColor: colors.surfaceAlt, borderColor: colors.border }]}>
-            <Text style={[styles.avatarLetter, { color: colors.primary, fontFamily: fonts.jakartaBold }]}>{settings.personOne.slice(0, 1).toUpperCase()}</Text>
-          </View>
-          <View style={[styles.avatar, styles.avatarSecond, { backgroundColor: colors.surfaceAlt, borderColor: colors.border }]}>
-            <Text style={[styles.avatarLetter, { color: colors.primary, fontFamily: fonts.jakartaBold }]}>{settings.personTwo.slice(0, 1).toUpperCase()}</Text>
-          </View>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Alterar foto de João Lucas"
+            disabled={uploadingAvatar !== null}
+            onPress={() => void changeAvatar('joao')}
+            style={[styles.avatar, { backgroundColor: colors.surfaceAlt, borderColor: colors.border }]}
+          >
+            {settings.joaoAvatarUrl
+              ? <Image source={{ uri: settings.joaoAvatarUrl }} style={styles.avatarImage} />
+              : <Text style={[styles.avatarLetter, { color: colors.primary, fontFamily: fonts.jakartaBold }]}>J</Text>}
+          </Pressable>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Alterar foto de Caio Forini"
+            disabled={uploadingAvatar !== null}
+            onPress={() => void changeAvatar('caio')}
+            style={[styles.avatar, styles.avatarSecond, { backgroundColor: colors.surfaceAlt, borderColor: colors.border }]}
+          >
+            {settings.caioAvatarUrl
+              ? <Image source={{ uri: settings.caioAvatarUrl }} style={styles.avatarImage} />
+              : <Text style={[styles.avatarLetter, { color: colors.primary, fontFamily: fonts.jakartaBold }]}>C</Text>}
+          </Pressable>
           <View style={[styles.heartBadge, { backgroundColor: colors.primary, borderColor: colors.surface }]}>
             <Heart size={14} color="#fff" fill="#fff" />
           </View>
         </View>
 
-        <Text style={[styles.name, { color: colors.text, fontFamily: fonts.playfair }]}>{settings.personOne} & {settings.personTwo}</Text>
+        <Text style={[styles.avatarHint, { color: colors.textMuted, fontFamily: fonts.jakarta }]}>
+          {uploadingAvatar ? 'Enviando foto...' : 'Toque em uma foto para alterá-la'}
+        </Text>
+        <Text style={[styles.name, { color: colors.text, fontFamily: fonts.playfair }]}>{coupleTitle}</Text>
         <Text style={[styles.tagline, { color: colors.textMuted, fontFamily: fonts.jakarta }]}>“Uma história construída nos dias de verdade.”</Text>
         <Text style={[styles.badge, { color: colors.primary, fontFamily: fonts.jakartaBold }]}>
           Juntos desde {formatPortugueseDate(settings.relationshipStartDate, { day: 'numeric', month: 'long', year: 'numeric' })}
@@ -99,18 +154,6 @@ export default function ProfileScreen() {
           <Text style={[styles.actionText, { color: '#fff', fontFamily: fonts.jakartaBold }]}>Editar Nós Dois</Text>
         </Pressable>
       </View>
-
-      <Pressable
-        accessibilityRole="button"
-        disabled={loggingOut}
-        onPress={() => void handleSignOut()}
-        style={[styles.logoutButton, { backgroundColor: colors.surface, borderColor: colors.border, opacity: loggingOut ? 0.6 : 1 }]}
-      >
-        <LogOut size={17} color={colors.primary} />
-        <Text style={[styles.logoutText, { color: colors.primary, fontFamily: fonts.jakartaBold }]}>
-          {loggingOut ? 'Encerrando sessão...' : 'Sair da conta'}
-        </Text>
-      </Pressable>
 
       <View style={styles.statsGrid}>
         {[
@@ -179,6 +222,18 @@ export default function ProfileScreen() {
         </Pressable>
       </View>
 
+      <Pressable
+        accessibilityRole="button"
+        disabled={loggingOut}
+        onPress={() => void handleSignOut()}
+        style={[styles.logoutButton, { backgroundColor: colors.surface, borderColor: colors.border, opacity: loggingOut ? 0.6 : 1 }]}
+      >
+        <LogOut size={17} color={colors.primary} />
+        <Text style={[styles.logoutText, { color: colors.primary, fontFamily: fonts.jakartaBold }]}>
+          {loggingOut ? 'Encerrando sessão...' : 'Sair da conta'}
+        </Text>
+      </Pressable>
+
       <Modal visible={showEditor} transparent animationType="fade" onRequestClose={() => setShowEditor(false)}>
         <View style={styles.modalBackdrop}>
           <View style={[styles.modalCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
@@ -207,7 +262,9 @@ const styles = StyleSheet.create({
   avatarRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginBottom: 18, position: 'relative' },
   avatar: { width: 82, height: 82, borderRadius: 41, borderWidth: 3, alignItems: 'center', justifyContent: 'center' },
   avatarSecond: { marginLeft: -16 },
+  avatarImage: { width: '100%', height: '100%', borderRadius: 41 },
   avatarLetter: { fontSize: 28 },
+  avatarHint: { textAlign: 'center', fontSize: 11, marginTop: -8, marginBottom: 10 },
   heartBadge: { position: 'absolute', width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center', bottom: -4, right: '36%', borderWidth: 2 },
   name: { fontSize: 30, textAlign: 'center' },
   tagline: { textAlign: 'center', marginTop: 8, fontStyle: 'italic', fontSize: 14 },

@@ -48,7 +48,7 @@ export default function LoginScreen() {
         </View>
       </View>
 
-      <Text style={[styles.title, { color: colors.text, fontFamily: fonts.playfair }]}>Velour</Text>
+      <Text style={[styles.title, { color: colors.text, fontFamily: fonts.playfair }]}>Portifolio Love</Text>
       <Text style={[styles.subtitle, { color: colors.textMuted, fontFamily: fonts.jakarta }]}>
         O relicário eterno de nós dois.
       </Text>
@@ -113,7 +113,7 @@ export default function LoginScreen() {
         {isSubmitting ? (
           <ActivityIndicator color="#fff" />
         ) : (
-          <Text style={[styles.primaryButtonText, { fontFamily: fonts.jakartaBold }]}>Entrar no Velour →</Text>
+          <Text style={[styles.primaryButtonText, { fontFamily: fonts.jakartaBold }]}>Entrar no Portifolio Love →</Text>
         )}
       </Pressable>
 

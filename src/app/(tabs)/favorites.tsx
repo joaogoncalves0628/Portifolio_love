@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Alert, Modal, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Heart, LayoutGrid, List, Pencil, X } from 'lucide-react-native';
+import { Heart, LayoutGrid, List, Pencil, Trash2, X } from 'lucide-react-native';
 import { router } from 'expo-router';
 import { MemoryMediaView } from '../../components/MemoryMediaView';
 import { useMemories, type MemoryItem } from '../../context/MemoryContext';
@@ -10,7 +10,7 @@ import { fonts } from '../../theme/theme';
 
 export default function FavoritesScreen() {
   const { colors } = useTheme();
-  const { memories, toggleFavorite, beginEditingMemory } = useMemories();
+  const { memories, toggleFavorite, beginEditingMemory, deleteMemory } = useMemories();
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const [layout, setLayout] = useState<'list' | 'grid'>('list');
@@ -28,6 +28,23 @@ export default function FavoritesScreen() {
     } catch (error) {
       Alert.alert('Não foi possível atualizar a curtida', error instanceof Error ? error.message : 'Tente novamente.');
     }
+  };
+
+  const confirmDelete = (id: string) => {
+    Alert.alert('Excluir publicação?', 'Essa ação não pode ser desfeita.', [
+      { text: 'Cancelar', style: 'cancel' },
+      {
+        text: 'Excluir',
+        style: 'destructive',
+        onPress: () => {
+          void deleteMemory(id)
+            .then(() => setSelectedMemory(null))
+            .catch((error: unknown) => {
+              Alert.alert('Não foi possível excluir', error instanceof Error ? error.message : 'Tente novamente.');
+            });
+        },
+      },
+    ]);
   };
 
   return (
@@ -110,14 +127,24 @@ export default function FavoritesScreen() {
                 </Pressable>
                 <View style={styles.bottomRow}>
                   <Text style={[styles.category, { color: colors.textMuted, fontFamily: fonts.jakarta }]}>{memory.date}</Text>
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel="Remover curtida"
-                    onPress={() => void handleToggleFavorite(memory.id)}
-                    hitSlop={8}
-                  >
-                    <Heart size={20} color={colors.primary} fill={colors.primary} />
-                  </Pressable>
+                  <View style={styles.detailActions}>
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel="Excluir publicação"
+                      onPress={() => confirmDelete(memory.id)}
+                      hitSlop={8}
+                    >
+                      <Trash2 size={18} color={colors.primary} />
+                    </Pressable>
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel="Remover curtida"
+                      onPress={() => void handleToggleFavorite(memory.id)}
+                      hitSlop={8}
+                    >
+                      <Heart size={20} color={colors.primary} fill={colors.primary} />
+                    </Pressable>
+                  </View>
                 </View>
               </View>
             ))}
@@ -146,6 +173,14 @@ export default function FavoritesScreen() {
                   <Text style={[styles.category, { color: colors.textMuted, fontFamily: fonts.jakarta }]}>{selectedMemory.date}</Text>
                 </View>
                 <View style={styles.detailActions}>
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel="Excluir publicação"
+                    onPress={() => selectedMemory && confirmDelete(selectedMemory.id)}
+                    style={[styles.closeButton, { backgroundColor: colors.surfaceAlt }]}
+                  >
+                    <Trash2 size={17} color={colors.primary} />
+                  </Pressable>
                   <Pressable
                     accessibilityRole="button"
                     accessibilityLabel="Editar publicação"

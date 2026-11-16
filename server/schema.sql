@@ -43,7 +43,9 @@ CREATE TABLE IF NOT EXISTS couple_settings (
   id TINYINT UNSIGNED NOT NULL PRIMARY KEY,
   person_one VARCHAR(80) NOT NULL,
   person_two VARCHAR(80) NOT NULL,
-  relationship_start_date DATE NOT NULL
+  relationship_start_date DATE NOT NULL,
+  joao_avatar_url VARCHAR(2048) NULL,
+  caio_avatar_url VARCHAR(2048) NULL
 );
 
 INSERT IGNORE INTO couple_settings (id, person_one, person_two, relationship_start_date)

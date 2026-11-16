@@ -26,6 +26,7 @@ O servidor também exige:
 
 - MySQL funcionando e os dados `MYSQL_*` corretos. Execute `server\schema.sql` uma vez no MySQL Workbench.
 - Se a tabela `memories` já existia de uma versão anterior do app, execute também `server\migrate-legacy-memories.sql` no Workbench para atualizar o esquema sem apagar publicações.
+- Se o banco já estava configurado antes das fotos de perfil, selecione `portifolio_love` no Workbench e execute `server\migrate-profile-photos.sql` para adicionar as colunas das fotos sem apagar dados.
 - `AUTH_JWT_SECRET`: gere um valor no PowerShell com `node -e "console.log(require('node:crypto').randomBytes(48).toString('base64url'))"`.
 - `AUTH_JOAO_PASSWORD` e `AUTH_CAIO_PASSWORD`: defina senhas diferentes, com pelo menos 12 caracteres.
 

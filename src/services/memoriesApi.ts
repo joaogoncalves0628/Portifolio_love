@@ -62,6 +62,11 @@ export const updateMemory = (id: string, memory: MemoryEditInput, token?: string
     body: JSON.stringify(memory),
   }, token);
 
+export const deleteMemory = (id: string, token?: string) =>
+  request<{ id: string }>(`/api/memories/${encodeURIComponent(id)}`, {
+    method: 'DELETE',
+  }, token);
+
 export const updateMemoryFavorite = (id: string, isFavorite: boolean, token?: string) =>
   request<{ id: string; isFavorite: boolean }>(`/api/memories/${encodeURIComponent(id)}/favorite`, {
     method: 'PATCH',

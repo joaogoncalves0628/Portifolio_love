@@ -11,6 +11,7 @@ import {
   fetchMemories,
   isMemoriesApiConfigured,
   saveCoupleSettings,
+  deleteMemory as deleteMemoryRequest,
   updateMemory as updateMemoryRequest,
   updateMemoryFavorite,
 } from '../services/memoriesApi';
@@ -60,6 +61,8 @@ export type CoupleSettings = {
   personOne: string;
   personTwo: string;
   relationshipStartDate: string;
+  joaoAvatarUrl: string | null;
+  caioAvatarUrl: string | null;
 };
 
 type PortfolioData = {
@@ -75,6 +78,7 @@ type MemoryContextValue = PortfolioData & {
   clearEditingMemory: () => void;
   addMemory: (memory: Omit<MemoryItem, 'id' | 'createdAt' | 'isFavorite'>) => Promise<void>;
   updateMemory: (id: string, memory: MemoryEditInput) => Promise<void>;
+  deleteMemory: (id: string) => Promise<void>;
   toggleFavorite: (id: string) => Promise<void>;
   addLoveNote: (note: Omit<LoveNote, 'id' | 'createdAt'>) => Promise<void>;
   addCoupleEvent: (event: Omit<CoupleEvent, 'id' | 'createdAt'>) => Promise<void>;
@@ -90,6 +94,8 @@ const defaultSettings: CoupleSettings = {
   personOne: 'Você',
   personTwo: 'Seu amor',
   relationshipStartDate: '2026-08-16',
+  joaoAvatarUrl: null,
+  caioAvatarUrl: null,
 };
 
 const emptyData: PortfolioData = {
@@ -359,6 +365,21 @@ export function MemoryProvider({ children }: { children: React.ReactNode }) {
     [commitData, data, token],
   );
 
+  const deleteMemory = useCallback(
+    async (id: string) => {
+      if (isMemoriesApiConfigured) {
+        await deleteMemoryRequest(id, token ?? undefined);
+      }
+
+      await commitData({
+        ...data,
+        memories: data.memories.filter((memory) => memory.id !== id),
+      });
+      setEditingMemory((current) => current?.id === id ? null : current);
+    },
+    [commitData, data, token],
+  );
+
   const toggleFavorite = useCallback(
     async (id: string) => {
       const memory = data.memories.find((item) => item.id === id);
@@ -413,6 +434,7 @@ export function MemoryProvider({ children }: { children: React.ReactNode }) {
       clearEditingMemory,
       addMemory,
       updateMemory,
+      deleteMemory,
       toggleFavorite,
       addLoveNote,
       addCoupleEvent,
@@ -427,6 +449,7 @@ export function MemoryProvider({ children }: { children: React.ReactNode }) {
       clearEditingMemory,
       addMemory,
       updateMemory,
+      deleteMemory,
       toggleFavorite,
       addLoveNote,
       addCoupleEvent,

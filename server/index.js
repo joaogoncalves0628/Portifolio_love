@@ -235,6 +235,19 @@ function normalizeMemoryInput(body, includeFavorite = false) {
   } = body ?? {};
   const normalizedTitle = typeof title === 'string' ? title.trim() : '';
   const normalizedDescription = typeof description === 'string' ? description.trim() : '';
+  const isValidMemoryDate = (value) => {
+    if (typeof value !== 'string') return false;
+    const match = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(value.trim());
+    if (!match) return false;
+    const [, dayText, monthText, yearText] = match;
+    const day = Number(dayText);
+    const month = Number(monthText);
+    const year = Number(yearText);
+    const parsedDate = new Date(Date.UTC(year, month - 1, day));
+    return parsedDate.getUTCFullYear() === year &&
+      parsedDate.getUTCMonth() === month - 1 &&
+      parsedDate.getUTCDate() === day;
+  };
   const normalizedImages = Array.isArray(images)
     ? images.map((media) => typeof media === 'string' ? { type: 'image', uri: media } : media)
     : [];
@@ -247,8 +260,10 @@ function normalizeMemoryInput(body, includeFavorite = false) {
 
   if (
     !['photo', 'carousel', 'text'].includes(contentType) ||
+    !normalizedTitle ||
     normalizedTitle.length > 60 ||
-    !normalizedDescription ||
+    !isValidMemoryDate(date) ||
+    (typeof description !== 'undefined' && typeof description !== 'string') ||
     normalizedDescription.length > 5000 ||
     (contentType === 'text' && normalizedImages.length !== 0) ||
     (contentType === 'photo' && (normalizedImages.length !== 1 || normalizedImages[0]?.type !== 'image')) ||
@@ -451,6 +466,19 @@ app.put('/api/memories/:id', async (request, response, next) => {
   }
 });
 
+app.delete('/api/memories/:id', async (request, response, next) => {
+  try {
+    const [result] = await pool.execute('DELETE FROM memories WHERE id = ?', [request.params.id]);
+    if (result.affectedRows === 0) {
+      response.status(404).json({ error: 'Publicação não encontrada.' });
+      return;
+    }
+    response.json({ id: request.params.id });
+  } catch (error) {
+    next(error);
+  }
+});
+
 app.patch('/api/memories/:id/favorite', async (request, response, next) => {
   const { isFavorite } = request.body ?? {};
   if (typeof isFavorite !== 'boolean') {
@@ -559,13 +587,16 @@ app.get('/api/settings', async (_request, response, next) => {
   try {
     const [rows] = await pool.query(
       `SELECT person_one AS personOne, person_two AS personTwo,
-        relationship_start_date AS relationshipStartDate
+        relationship_start_date AS relationshipStartDate,
+        joao_avatar_url AS joaoAvatarUrl, caio_avatar_url AS caioAvatarUrl
        FROM couple_settings WHERE id = 1`,
     );
     response.json(rows[0] || {
       personOne: 'Você',
       personTwo: 'Seu amor',
       relationshipStartDate: '2026-08-16',
+      joaoAvatarUrl: null,
+      caioAvatarUrl: null,
     });
   } catch (error) {
     next(error);
@@ -573,7 +604,7 @@ app.get('/api/settings', async (_request, response, next) => {
 });
 
 app.put('/api/settings', async (request, response, next) => {
-  const { personOne, personTwo, relationshipStartDate } = request.body ?? {};
+  const { personOne, personTwo, relationshipStartDate, joaoAvatarUrl, caioAvatarUrl } = request.body ?? {};
   if (
     typeof personOne !== 'string' ||
     !personOne.trim() ||
@@ -586,19 +617,39 @@ app.put('/api/settings', async (request, response, next) => {
     response.status(400).json({ error: 'Informe os dois nomes e uma data de namoro válida.' });
     return;
   }
+  if (
+    [joaoAvatarUrl, caioAvatarUrl].some((url) =>
+      url !== undefined && url !== null && url !== '' &&
+      (typeof url !== 'string' || url.length > 2048 || !/^https:\/\//i.test(url)),
+    )
+  ) {
+    response.status(400).json({ error: 'As fotos de perfil precisam ser URLs HTTPS válidas.' });
+    return;
+  }
 
   const settings = {
     personOne: personOne.trim(),
     personTwo: personTwo.trim(),
     relationshipStartDate,
+    joaoAvatarUrl: typeof joaoAvatarUrl === 'string' && joaoAvatarUrl ? joaoAvatarUrl : null,
+    caioAvatarUrl: typeof caioAvatarUrl === 'string' && caioAvatarUrl ? caioAvatarUrl : null,
   };
   try {
     await pool.execute(
-      `INSERT INTO couple_settings (id, person_one, person_two, relationship_start_date)
-       VALUES (1, ?, ?, ?)
+      `INSERT INTO couple_settings
+         (id, person_one, person_two, relationship_start_date, joao_avatar_url, caio_avatar_url)
+       VALUES (1, ?, ?, ?, ?, ?)
        ON DUPLICATE KEY UPDATE person_one = VALUES(person_one),
-         person_two = VALUES(person_two), relationship_start_date = VALUES(relationship_start_date)`,
-      [settings.personOne, settings.personTwo, settings.relationshipStartDate],
+         person_two = VALUES(person_two), relationship_start_date = VALUES(relationship_start_date),
+         joao_avatar_url = COALESCE(VALUES(joao_avatar_url), joao_avatar_url),
+         caio_avatar_url = COALESCE(VALUES(caio_avatar_url), caio_avatar_url)`,
+      [
+        settings.personOne,
+        settings.personTwo,
+        settings.relationshipStartDate,
+        settings.joaoAvatarUrl,
+        settings.caioAvatarUrl,
+      ],
     );
     response.json(settings);
   } catch (error) {

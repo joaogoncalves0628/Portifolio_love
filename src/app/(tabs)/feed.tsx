@@ -2,7 +2,7 @@ import { router } from 'expo-router';
 import { useTheme } from '../../context/ThemeContext';
 import { useMemories } from '../../context/MemoryContext';
 import { fonts } from '../../theme/theme';
-import { CalendarDays, Heart, Plus, MapPin, Pencil } from 'lucide-react-native';
+import { CalendarDays, Heart, Plus, MapPin, Pencil, Trash2 } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -21,6 +21,7 @@ export default function FeedScreen() {
     addLoveNote,
     beginEditingMemory,
     clearEditingMemory,
+    deleteMemory,
   } = useMemories();
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
@@ -53,6 +54,21 @@ export default function FeedScreen() {
     }
   };
 
+  const confirmDelete = (id: string) => {
+    Alert.alert('Excluir publicação?', 'Essa ação não pode ser desfeita.', [
+      { text: 'Cancelar', style: 'cancel' },
+      {
+        text: 'Excluir',
+        style: 'destructive',
+        onPress: () => {
+          void deleteMemory(id).catch((error: unknown) => {
+            Alert.alert('Não foi possível excluir', error instanceof Error ? error.message : 'Tente novamente.');
+          });
+        },
+      },
+    ]);
+  };
+
   return (
     <ScrollView
       showsVerticalScrollIndicator={false}
@@ -60,7 +76,7 @@ export default function FeedScreen() {
     >
       <View style={styles.header}>
         <Text style={[styles.eyebrow, { color: colors.textMuted, fontFamily: fonts.jakarta }]}>Nossos capítulos</Text>
-        <Text style={[styles.title, { color: colors.text, fontFamily: fonts.playfair }]}>Álbum de Lembranças</Text>
+        <Text style={[styles.title, { color: colors.text, fontFamily: fonts.playfair }]}>Portifolio Love</Text>
       </View>
 
       {connectionStatus !== 'connected' && (
@@ -118,6 +134,15 @@ export default function FeedScreen() {
                 style={[styles.editButton, { backgroundColor: colors.surfaceAlt, borderColor: colors.border }]}
               >
                 <Pencil size={15} color={colors.primary} />
+              </Pressable>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Excluir publicação"
+                onPress={() => confirmDelete(memory.id)}
+                hitSlop={8}
+                style={[styles.editButton, { backgroundColor: colors.surfaceAlt, borderColor: colors.border }]}
+              >
+                <Trash2 size={15} color={colors.primary} />
               </Pressable>
             </View>
           </View>

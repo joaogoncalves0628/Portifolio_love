@@ -11,6 +11,7 @@ import { MemoryMediaView } from '../components/MemoryMediaView';
 import { isMemoriesApiConfigured, uploadMemoryImage } from '../services/memoriesApi';
 import { useTheme } from '../context/ThemeContext';
 import { fonts } from '../theme/theme';
+import { parsePortugueseDate } from '../utils/dates';
 
 const tagOptions = ['#Viagem', '#NossoCantinho', '#Aniversário', '#JantarRomântico', '#Amor'];
 const contentTypes: { value: MemoryContentType; label: string }[] = [
@@ -140,8 +141,12 @@ function MemoryEditorForm({ editingMemory }: { editingMemory: MemoryItem | null 
     const normalizedDescription = description.trim();
     const normalizedAuthor = author.trim();
 
-    if (!normalizedDescription) {
-      Alert.alert('Conteúdo obrigatório', 'Escreva a história ou o texto da memória antes de salvar.');
+    if (!normalizedTitle || normalizedTitle.length > 60) {
+      Alert.alert('Título obrigatório', 'Informe um título com até 60 caracteres.');
+      return;
+    }
+    if (!parsePortugueseDate(date.trim())) {
+      Alert.alert('Data obrigatória', 'Informe uma data válida no formato DD/MM/AAAA.');
       return;
     }
     if (!normalizedAuthor || normalizedAuthor.length > 100) {
@@ -204,7 +209,7 @@ function MemoryEditorForm({ editingMemory }: { editingMemory: MemoryItem | null 
         contentType,
         author: normalizedAuthor,
         location: location.trim() || 'Nosso cantinho',
-        date: date.trim() || 'Hoje',
+        date: date.trim(),
         time: time.trim(),
         images,
         title: normalizedTitle,
@@ -374,7 +379,7 @@ function MemoryEditorForm({ editingMemory }: { editingMemory: MemoryItem | null 
       </View>
 
       <View style={[styles.field, { backgroundColor: colors.surface, borderColor: colors.border }]}> 
-        <Text style={[styles.label, { color: colors.text, fontFamily: fonts.jakartaBold }]}>Título (opcional)</Text>
+        <Text style={[styles.label, { color: colors.text, fontFamily: fonts.jakartaBold }]}>Título *</Text>
         <TextInput
           value={title}
           onChangeText={setTitle}
@@ -387,7 +392,7 @@ function MemoryEditorForm({ editingMemory }: { editingMemory: MemoryItem | null 
       </View>
 
       <View style={[styles.field, { backgroundColor: colors.surface, borderColor: colors.border }]}> 
-        <Text style={[styles.label, { color: colors.text, fontFamily: fonts.jakartaBold }]}>Nossa História & Sensações *</Text>
+        <Text style={[styles.label, { color: colors.text, fontFamily: fonts.jakartaBold }]}>Nossa História & Sensações (opcional)</Text>
         <TextInput
           value={description}
           onChangeText={setDescription}
@@ -419,7 +424,7 @@ function MemoryEditorForm({ editingMemory }: { editingMemory: MemoryItem | null 
         <View style={[styles.dateField, { backgroundColor: colors.surface, borderColor: colors.border }]}> 
           <View style={styles.iconLabel}> 
             <Clock3 size={16} color={colors.primary} />
-            <Text style={[styles.label, { color: colors.text, fontFamily: fonts.jakartaBold }]}>Horário *</Text>
+            <Text style={[styles.label, { color: colors.text, fontFamily: fonts.jakartaBold }]}>Horário (opcional)</Text>
           </View>
           <TextInput
             value={time}

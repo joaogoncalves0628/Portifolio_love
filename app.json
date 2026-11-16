@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "Portifolio_love",
+    "name": "Portifolio Love",
     "slug": "Portifolio_love",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -25,7 +25,7 @@
     "android": {
       "package": "com.joaolucas.portifoliolove",
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
+        "backgroundColor": "#4A0E17",
         "foregroundImage": "./assets/android-icon-foreground.png",
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
